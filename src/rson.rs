@@ -1,4 +1,6 @@
+#![allow(dead_code)]
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::io::{BufReader, Read};
 
 /// JSON Grammar:
@@ -55,6 +57,7 @@ use std::io::{BufReader, Read};
 ///         unescaped = a-z | A-Z | %x5D-10FFFF
 ///
 /// From the abover Grammar, we can represent a JSON Value as:
+#[derive(Eq, PartialEq)]
 enum Value {
     Null,
     Bool(bool),
@@ -94,11 +97,24 @@ impl From<char> for Ops {
     }
 }
 
-struct RsonMap<K, V> {
+#[derive(Eq, PartialEq)]
+struct RsonMap<K, V>
+where
+    K: Hash + std::cmp::Ord,
+{
     map: HashMap<K, V>,
 }
 
-struct Number;
+#[derive(Eq, PartialEq)]
+struct Number {
+    value: String,
+}
+
+impl Number {
+    fn new(value: String) -> Self {
+        Self { value }
+    }
+}
 
 struct Rson<'a, R> {
     names: HashSet<&'a str>,
@@ -112,11 +128,15 @@ impl<R: Read> Rson<'_, R> {
     fn from_reader(buf: R) -> Result<Self> {
         let reader = BufReader::new(buf);
 
-        Ok(Self {
+        let mut rson = Self {
             names: HashSet::new(),
             reader,
             look: None,
-        })
+        };
+
+        rson.look = rson.get_char();
+
+        Ok(rson)
     }
 
     fn get_char(&mut self) -> Option<char> {
@@ -140,10 +160,23 @@ impl<R: Read> Rson<'_, R> {
     }
 
     fn match_char(&mut self, x: char) {
-        if self.look != Some(x) {
-            panic!("{}", x);
+        if let Some(look) = self.look {
+            if look != x {
+                panic!("expected {}, found {}", look, x);
+            }
         }
         self.look = self.get_char();
+    }
+
+    fn get_token(&mut self) -> String {
+        let mut token = String::new();
+
+        while let Some(c) = self.look {
+            token.push(c);
+            self.look = self.get_char();
+        }
+
+        token
     }
 
     pub fn get_name(&mut self) -> String {
@@ -189,9 +222,46 @@ impl<R: Read> Rson<'_, R> {
         }
     }
 
-    fn number(&mut self) {
-        print!(" number ");
-        self.look = self.get_char();
+    fn string(&mut self) -> Value {
+        self.match_char('"');
+
+        let mut token = String::new();
+        while let Some(c) = self.look {
+            if c != '"' {
+                token.push(c);
+            }
+            self.look = self.get_char();
+        }
+
+        self.match_char('"');
+        Value::String(format!("\"{}\"", token))
+    }
+
+    pub fn literal(&mut self) -> Value {
+        let token = self.get_token();
+        match token.as_str() {
+            "null" => Value::Null,
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => panic!("Expected a literal"),
+        }
+    }
+
+    // TODO support Decimal, Exponent
+    fn number(&mut self) -> Value {
+        let mut token = String::new();
+        if let Some(look) = self.look {
+            if !look.is_ascii_digit() {
+                expected("Integer");
+            }
+            while let Some(look) = self.look {
+                if look.is_ascii_digit() {
+                    token.push(look);
+                }
+                self.look = self.get_char();
+            }
+        }
+        Value::Number(Number::new(token))
     }
 
     fn parse(&mut self) -> Result<Value> {
@@ -202,9 +272,10 @@ impl<R: Read> Rson<'_, R> {
                 '[' => self.array(),
                 '}' => self.object(),
                 ']' => self.array(),
+                // '"' => self.string(),
                 _ => {
                     if look.is_ascii_alphabetic() {
-                        self.name();
+                        self.literal();
                     } else if look.is_ascii_digit() {
                         self.number();
                     }
@@ -217,9 +288,49 @@ impl<R: Read> Rson<'_, R> {
     }
 }
 
+fn expected(value: &str) {
+    panic!(format!("Expected a `{}`", value));
+}
+
 #[test]
-fn test_rson() {
-    let buf = "{ \"key\": \"value\" }";
-    let mut rson = Rson::from_reader(buf.as_bytes()).unwrap();
-    rson.parse().unwrap();
+fn test_literal() {
+    let mut rson = Rson::from_reader("true".as_bytes()).unwrap();
+    assert!(rson.literal() == Value::Bool(true));
+
+    let mut rson = Rson::from_reader("false".as_bytes()).unwrap();
+    assert!(rson.literal() == Value::Bool(false));
+
+    let mut rson = Rson::from_reader("null".as_bytes()).unwrap();
+    assert!(rson.literal() == Value::Null);
+}
+
+#[test]
+#[should_panic(expected = "Expected a literal")]
+fn test_invalid_literal() {
+    let mut rson = Rson::from_reader("nullliteral".as_bytes()).unwrap();
+    rson.literal();
+
+    let mut rson = Rson::from_reader("true literal".as_bytes()).unwrap();
+    rson.literal();
+
+    let mut rson = Rson::from_reader("false literal".as_bytes()).unwrap();
+    rson.literal();
+}
+
+#[test]
+fn test_string() {
+    let text = r#""string""#;
+    let mut rson = Rson::from_reader(text.as_bytes()).unwrap();
+    assert!(rson.string() == Value::String(text.to_string()));
+
+    let text = r#""A long long long string. Maybe!""#;
+    let mut rson = Rson::from_reader(text.as_bytes()).unwrap();
+    assert!(rson.string() == Value::String(text.to_string()));
+}
+
+#[test]
+fn test_number() {
+    let number = r#"1234213243"#;
+    let mut rson = Rson::from_reader(number.as_bytes()).unwrap();
+    assert!(rson.number() == Value::Number(Number::new(number.to_string())));
 }
