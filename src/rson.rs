@@ -71,10 +71,6 @@ enum Value {
 const TAB: char = '\t';
 const NEW_LINE: char = '\n';
 const SPACE: char = ' ';
-const BEGIN_OBJECT: char = '{';
-const BEGIN_ARRAY: char = '[';
-const END_OBJECT: char = '}';
-const END_ARRAY: char = ']';
 
 #[derive(Eq, PartialEq)]
 #[repr(u8)]
@@ -264,14 +260,14 @@ impl<R: Read> Rson<'_, R> {
 
         // If we see an END_OBJECT, it's an empty object: {}
         // There is no work to be done here, return early.
-        if self.accept(END_OBJECT) {
+        if self.accept(StructuralChar::EndObject.into()) {
             return Value::Object(map);
         }
 
         let key = self.string();
-        self.match_char(':');
+        self.match_char(StructuralChar::NameSeperator);
         let value = self.value();
-        self.match_char('}');
+        self.match_char(StructuralChar::EndObject);
         if let Value::String(key) = key {
             map.0.insert(key, value);
         }
@@ -291,7 +287,7 @@ impl<R: Read> Rson<'_, R> {
     }
 
     fn string(&mut self) -> Value {
-        self.match_char('"');
+        self.match_char(StructuralChar::QuotationMark);
 
         let mut token = String::new();
         while let Some(c) = self.look {
@@ -303,7 +299,7 @@ impl<R: Read> Rson<'_, R> {
             }
         }
 
-        self.match_char('"');
+        self.match_char(StructuralChar::QuotationMark);
         self.skip_white();
         Value::String(format!("\"{}\"", token))
     }
