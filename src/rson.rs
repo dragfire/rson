@@ -98,6 +98,7 @@ impl StructuralChar {
             StructuralChar::EndObject,
             StructuralChar::NameSeperator,
             StructuralChar::ValueSeperator,
+            StructuralChar::QuotationMark,
         ]
         .iter()
     }
@@ -248,6 +249,12 @@ impl<R: Read> Rson<'_, R> {
     }
 
     pub fn value(&mut self) -> Value {
+        while let Some(look) = self.look {
+            if StructuralChar::from(look) == StructuralChar::EndObject {
+                break;
+            }
+            self.look = self.get_char();
+        }
         Value::Null
     }
 
@@ -289,10 +296,12 @@ impl<R: Read> Rson<'_, R> {
 
         let mut token = String::new();
         while let Some(c) = self.look {
-            if !StructuralChar::iter().any(|sc| *sc == c.into()) {
+            if c != '"' {
                 token.push(c);
+                self.look = self.get_char();
+            } else {
+                break;
             }
-            self.look = self.get_char();
         }
 
         self.match_char('"');
@@ -411,8 +420,11 @@ fn test_object_invalid() {
 
 #[test]
 fn test_object() {
-    let object = r#"{"name": null}"#;
+    let object = r#"{"IsGPU": true}"#;
     let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
     let actual = rson.object();
-    assert_eq!(actual, Value::Object(RsonMap(HashMap::new())));
+
+    let mut map = HashMap::new();
+    map.insert(r#""IsGPU""#.to_string(), Value::Null);
+    assert_eq!(actual, Value::Object(RsonMap(map)));
 }
