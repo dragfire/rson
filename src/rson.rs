@@ -1,154 +1,6 @@
-#![allow(dead_code)]
+use crate::value::{Literal, Number, RsonMap, StructuralChar, Value, SPACE, TAB};
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 use std::io::{BufReader, Read};
-
-/// JSON Grammar:
-///     JSON-text = ws value ws
-///
-///     ws = *( SPACE | TAB | LINE_FEED/NEW_LINE | CR )
-///     
-///     Structural Characters:
-///         begin-array = ws [ ws
-///         begin-object = ws { ws
-///         end-array = ws ] ws
-///         end-object = ws } ws
-///         name-separator = ws : ws
-///         value-seperator = ws , ws
-///     
-///     Values:
-///         Value = (false | null | true | object | array | number | string)
-///
-///     Objects:
-///         Object = begin-object [ member *( value-seperator member ) ]
-///                  end- object
-///
-///         member = string name-seperator value
-///
-///     Arrays:
-///         array = begin-array [ value *( value-seperator value ) ] end-array
-///
-///     Numbers:
-///         number = [ minus ] int [ frac ] [ exp ]
-///
-///         decimal-point = .
-///
-///         digit1-9 = 1-9
-///
-///         e = (e | E) ; lowercase | uppercase
-///
-///         exp = e [ minus | plus ] 1*DIGIT
-///
-///         frac = decimal-point 1*DIGIT
-///
-///         int = zero / (digit1-9 *DIGIT)
-///
-///         minus = -
-///
-///         plus = +
-///
-///         zero = 0
-///
-///     Strings:
-///         string = quotation-mark *char quotation-mark
-///         char = unescaped | escape ( " | \ | / | b | f | n | r | t | uXXXX )
-///         escape = \
-///         quotation-mark = "
-///         unescaped = a-z | A-Z | %x5D-10FFFF
-///
-/// From the abover Grammar, we can represent a JSON Value as:
-#[derive(Debug, Eq, PartialEq)]
-enum Value {
-    Null,
-    Bool(bool),
-    Number(Number),
-    String(String),
-    Array(Vec<Value>),
-    Object(RsonMap<String, Value>),
-}
-
-// Constant declarations
-const TAB: char = '\t';
-const NEW_LINE: char = '\n';
-const SPACE: char = ' ';
-
-#[derive(Eq, PartialEq)]
-#[repr(u8)]
-enum StructuralChar {
-    BeginArray = '[' as u8,
-    EndArray = ']' as u8,
-    BeginObject = '{' as u8,
-    EndObject = '}' as u8,
-    NameSeperator = ':' as u8,
-    ValueSeperator = ',' as u8,
-    QuotationMark = '"' as u8,
-}
-
-impl StructuralChar {
-    fn iter() -> std::slice::Iter<'static, StructuralChar> {
-        [
-            StructuralChar::BeginArray,
-            StructuralChar::BeginObject,
-            StructuralChar::EndArray,
-            StructuralChar::EndObject,
-            StructuralChar::NameSeperator,
-            StructuralChar::ValueSeperator,
-            StructuralChar::QuotationMark,
-        ]
-        .iter()
-    }
-}
-
-impl From<StructuralChar> for char {
-    fn from(sc: StructuralChar) -> Self {
-        match sc {
-            StructuralChar::BeginArray => '[',
-            StructuralChar::EndArray => ']',
-            StructuralChar::BeginObject => '{',
-            StructuralChar::EndObject => '}',
-            StructuralChar::NameSeperator => ':',
-            StructuralChar::ValueSeperator => ',',
-            StructuralChar::QuotationMark => '"',
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Ops {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    INVALID,
-}
-
-impl From<char> for Ops {
-    fn from(c: char) -> Self {
-        match c {
-            '+' => Ops::ADD,
-            '-' => Ops::SUB,
-            '*' => Ops::MUL,
-            '/' => Ops::DIV,
-            _ => Ops::INVALID,
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct RsonMap<K, V>(HashMap<K, V>)
-where
-    K: Hash + std::cmp::Ord;
-
-#[derive(Debug, Eq, PartialEq)]
-struct Number {
-    value: String,
-}
-
-impl Number {
-    fn new(value: String) -> Self {
-        Self { value }
-    }
-}
 
 struct Rson<'a, R> {
     names: HashSet<&'a str>,
@@ -244,13 +96,16 @@ impl<R: Read> Rson<'_, R> {
     }
 
     pub fn value(&mut self) -> Value {
-        while let Some(look) = self.look {
-            if look == StructuralChar::EndObject.into() {
-                break;
-            }
-            self.look = self.get_char();
-        }
-        Value::Null
+        // recognize string
+        if self.accept(StructuralChar::QuotationMark.into()) {}
+
+        // recognize array
+        if self.accept(StructuralChar::BeginArray.into()) {}
+
+        // recognize object
+        if self.accept(StructuralChar::BeginObject.into()) {}
+
+        self.literal()
     }
 
     fn object(&mut self) -> Value {
@@ -307,10 +162,10 @@ impl<R: Read> Rson<'_, R> {
     pub fn literal(&mut self) -> Value {
         let token = self.get_token();
         match token.as_str() {
-            "null" => Value::Null,
-            "true" => Value::Bool(true),
-            "false" => Value::Bool(false),
-            _ => panic!("Expected a literal"),
+            "null" => Value::Literal(Literal::Null),
+            "true" => Value::Literal(Literal::Bool(true)),
+            "false" => Value::Literal(Literal::Bool(false)),
+            _ => panic!("Expected a literal. Found: {}", token),
         }
     }
 
@@ -347,7 +202,7 @@ impl<R: Read> Rson<'_, R> {
             self.look = self.get_char();
         }
 
-        Ok(Value::Null)
+        Ok(Value::Literal(Literal::Null))
     }
 }
 
@@ -358,13 +213,13 @@ fn expected(value: &str) {
 #[test]
 fn test_literal() {
     let mut rson = Rson::from_reader("true".as_bytes()).unwrap();
-    assert!(rson.literal() == Value::Bool(true));
+    assert!(rson.literal() == Value::Literal(Literal::Bool(true)));
 
     let mut rson = Rson::from_reader("false".as_bytes()).unwrap();
-    assert!(rson.literal() == Value::Bool(false));
+    assert!(rson.literal() == Value::Literal(Literal::Bool(false)));
 
     let mut rson = Rson::from_reader("null".as_bytes()).unwrap();
-    assert!(rson.literal() == Value::Null);
+    assert!(rson.literal() == Value::Literal(Literal::Null));
 }
 
 #[test]
@@ -420,6 +275,6 @@ fn test_object() {
     let actual = rson.object();
 
     let mut map = HashMap::new();
-    map.insert(r#""IsGPU""#.to_string(), Value::Null);
+    map.insert(r#""IsGPU""#.to_string(), Value::Literal(Literal::Null));
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }
