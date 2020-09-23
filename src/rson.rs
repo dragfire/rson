@@ -86,7 +86,6 @@ enum StructuralChar {
     NameSeperator = ':' as u8,
     ValueSeperator = ',' as u8,
     QuotationMark = '"' as u8,
-    Unknown,
 }
 
 impl StructuralChar {
@@ -104,17 +103,16 @@ impl StructuralChar {
     }
 }
 
-impl From<char> for StructuralChar {
-    fn from(c: char) -> Self {
-        match c {
-            '[' => Self::BeginArray,
-            ']' => Self::EndArray,
-            '{' => Self::BeginObject,
-            '}' => Self::EndObject,
-            ':' => Self::NameSeperator,
-            ',' => Self::ValueSeperator,
-            '"' => Self::QuotationMark,
-            _ => Self::Unknown,
+impl From<StructuralChar> for char {
+    fn from(sc: StructuralChar) -> Self {
+        match sc {
+            StructuralChar::BeginArray => '[',
+            StructuralChar::EndArray => ']',
+            StructuralChar::BeginObject => '{',
+            StructuralChar::EndObject => '}',
+            StructuralChar::NameSeperator => ':',
+            StructuralChar::ValueSeperator => ',',
+            StructuralChar::QuotationMark => '"',
         }
     }
 }
@@ -199,10 +197,11 @@ impl<R: Read> Rson<'_, R> {
         [TAB, SPACE].iter().any(|w| Some(*w) == self.look)
     }
 
-    fn match_char(&mut self, x: char) {
+    fn match_char<T: Into<char>>(&mut self, x: T) {
         if let Some(look) = self.look {
-            if !self.accept(x) {
-                panic!("Look: {}, Expected: {}", look, x);
+            let c: char = x.into();
+            if !self.accept(c) {
+                panic!("Look: {}, Expected: {}", look, c);
             }
         }
         self.look = self.get_char();
@@ -250,7 +249,7 @@ impl<R: Read> Rson<'_, R> {
 
     pub fn value(&mut self) -> Value {
         while let Some(look) = self.look {
-            if StructuralChar::from(look) == StructuralChar::EndObject {
+            if look == StructuralChar::EndObject.into() {
                 break;
             }
             self.look = self.get_char();
@@ -260,7 +259,7 @@ impl<R: Read> Rson<'_, R> {
 
     fn object(&mut self) -> Value {
         self.skip_white();
-        self.match_char('{');
+        self.match_char(StructuralChar::BeginObject);
         let mut map = RsonMap(HashMap::new());
 
         // If we see an END_OBJECT, it's an empty object: {}
@@ -296,7 +295,7 @@ impl<R: Read> Rson<'_, R> {
 
         let mut token = String::new();
         while let Some(c) = self.look {
-            if c != '"' {
+            if c != StructuralChar::QuotationMark.into() {
                 token.push(c);
                 self.look = self.get_char();
             } else {
