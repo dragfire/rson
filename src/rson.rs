@@ -57,7 +57,7 @@ use std::io::{BufReader, Read};
 ///         unescaped = a-z | A-Z | %x5D-10FFFF
 ///
 /// From the abover Grammar, we can represent a JSON Value as:
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 enum Value {
     Null,
     Bool(bool),
@@ -75,6 +75,48 @@ const BEGIN_OBJECT: char = '{';
 const BEGIN_ARRAY: char = '[';
 const END_OBJECT: char = '}';
 const END_ARRAY: char = ']';
+
+#[derive(Eq, PartialEq)]
+#[repr(u8)]
+enum StructuralChar {
+    BeginArray = '[' as u8,
+    EndArray = ']' as u8,
+    BeginObject = '{' as u8,
+    EndObject = '}' as u8,
+    NameSeperator = ':' as u8,
+    ValueSeperator = ',' as u8,
+    QuotationMark = '"' as u8,
+    Unknown,
+}
+
+impl StructuralChar {
+    fn iter() -> std::slice::Iter<'static, StructuralChar> {
+        [
+            StructuralChar::BeginArray,
+            StructuralChar::BeginObject,
+            StructuralChar::EndArray,
+            StructuralChar::EndObject,
+            StructuralChar::NameSeperator,
+            StructuralChar::ValueSeperator,
+        ]
+        .iter()
+    }
+}
+
+impl From<char> for StructuralChar {
+    fn from(c: char) -> Self {
+        match c {
+            '[' => Self::BeginArray,
+            ']' => Self::EndArray,
+            '{' => Self::BeginObject,
+            '}' => Self::EndObject,
+            ':' => Self::NameSeperator,
+            ',' => Self::ValueSeperator,
+            '"' => Self::QuotationMark,
+            _ => Self::Unknown,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 enum Ops {
@@ -97,15 +139,12 @@ impl From<char> for Ops {
     }
 }
 
-#[derive(Eq, PartialEq)]
-struct RsonMap<K, V>
+#[derive(Debug, Eq, PartialEq)]
+struct RsonMap<K, V>(HashMap<K, V>)
 where
-    K: Hash + std::cmp::Ord,
-{
-    map: HashMap<K, V>,
-}
+    K: Hash + std::cmp::Ord;
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 struct Number {
     value: String,
 }
@@ -161,11 +200,21 @@ impl<R: Read> Rson<'_, R> {
 
     fn match_char(&mut self, x: char) {
         if let Some(look) = self.look {
-            if look != x {
-                panic!("expected {}, found {}", look, x);
+            if !self.accept(x) {
+                panic!("Look: {}, Expected: {}", look, x);
             }
         }
         self.look = self.get_char();
+        self.skip_white();
+    }
+
+    fn accept(&mut self, x: char) -> bool {
+        if let Some(look) = self.look {
+            if x == look {
+                return true;
+            }
+        }
+        false
     }
 
     fn get_token(&mut self) -> String {
@@ -198,16 +247,29 @@ impl<R: Read> Rson<'_, R> {
         token
     }
 
-    fn object(&mut self) {
-        self.skip_white();
-        self.match_char('"');
-        let name = self.get_name();
-        self.match_char('"');
-        self.skip_white();
-        self.match_char(':');
-        self.skip_white();
+    pub fn value(&mut self) -> Value {
+        Value::Null
+    }
 
-        print!(" object {}", self.look.unwrap());
+    fn object(&mut self) -> Value {
+        self.skip_white();
+        self.match_char('{');
+        let mut map = RsonMap(HashMap::new());
+
+        // If we see an END_OBJECT, it's an empty object: {}
+        // There is no work to be done here, return early.
+        if self.accept(END_OBJECT) {
+            return Value::Object(map);
+        }
+
+        let key = self.string();
+        self.match_char(':');
+        let value = self.value();
+        self.match_char('}');
+        if let Value::String(key) = key {
+            map.0.insert(key, value);
+        }
+        Value::Object(map)
     }
 
     fn array(&mut self) {
@@ -227,13 +289,14 @@ impl<R: Read> Rson<'_, R> {
 
         let mut token = String::new();
         while let Some(c) = self.look {
-            if c != '"' {
+            if !StructuralChar::iter().any(|sc| *sc == c.into()) {
                 token.push(c);
             }
             self.look = self.get_char();
         }
 
         self.match_char('"');
+        self.skip_white();
         Value::String(format!("\"{}\"", token))
     }
 
@@ -264,15 +327,11 @@ impl<R: Read> Rson<'_, R> {
         Value::Number(Number::new(token))
     }
 
+    // TODO revisit
     fn parse(&mut self) -> Result<Value> {
         self.look = self.get_char();
         while let Some(look) = self.look {
             match look {
-                '{' => self.object(),
-                '[' => self.array(),
-                '}' => self.object(),
-                ']' => self.array(),
-                // '"' => self.string(),
                 _ => {
                     if look.is_ascii_alphabetic() {
                         self.literal();
@@ -333,4 +392,27 @@ fn test_number() {
     let number = r#"1234213243"#;
     let mut rson = Rson::from_reader(number.as_bytes()).unwrap();
     assert!(rson.number() == Value::Number(Number::new(number.to_string())));
+}
+
+#[test]
+fn test_object_empty() {
+    let object = "{  }";
+    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
+    assert!(rson.object() == Value::Object(RsonMap(HashMap::new())));
+}
+
+#[test]
+#[should_panic]
+fn test_object_invalid() {
+    let object = "{true}";
+    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
+    rson.object();
+}
+
+#[test]
+fn test_object() {
+    let object = r#"{"name": null}"#;
+    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
+    let actual = rson.object();
+    assert_eq!(actual, Value::Object(RsonMap(HashMap::new())));
 }
