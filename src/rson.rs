@@ -125,7 +125,6 @@ impl<R: Read> Rson<'_, R> {
             let key = self.string();
             self.match_char(StructuralChar::NameSeperator);
             let value = self.value();
-
             // consume ValueSeperator and continue to the next
             // key-value pair if there is any.
             if self.accept(StructuralChar::ValueSeperator.into()) {
@@ -180,10 +179,13 @@ impl<R: Read> Rson<'_, R> {
             while let Some(look) = self.look {
                 if look.is_ascii_digit() {
                     token.push(look);
+                } else {
+                    break;
                 }
                 self.look = self.get_char();
             }
         }
+        self.skip_white();
         Value::Number(Number::new(token))
     }
 }
@@ -289,12 +291,14 @@ fn test_object_multiple_entries() {
     // }
     //
     let object = r#"{
-    "name": "Devajit Asem",
-    "hasGPU": true    ,
+    "Id": 93638382,
+    "Name": "Devajit Asem",
+    "HasGPU": true    ,
     "Got3080": null,
     "CanAfford3090"   : false,
     "GPUDetail": {
         "RamType": "DDR6",
+        "SerialNum": 12837982,
     }
     }"#;
     let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
@@ -302,11 +306,15 @@ fn test_object_multiple_entries() {
 
     let mut map = HashMap::new();
     map.insert(
-        r#""name""#.to_string(),
+        r#""Id""#.to_string(),
+        Value::Number(Number::new("93638382".to_string())),
+    );
+    map.insert(
+        r#""Name""#.to_string(),
         Value::String(r#""Devajit Asem""#.to_string()),
     );
     map.insert(
-        r#""hasGPU""#.to_string(),
+        r#""HasGPU""#.to_string(),
         Value::Literal(Literal::Bool(true)),
     );
     map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
@@ -319,6 +327,10 @@ fn test_object_multiple_entries() {
     inner_map.insert(
         r#""RamType""#.to_string(),
         Value::String(r#""DDR6""#.to_string()),
+    );
+    inner_map.insert(
+        r#""SerialNum""#.to_string(),
+        Value::Number(Number::new("12837982".to_string())),
     );
     map.insert(
         r#""GPUDetail""#.to_string(),
