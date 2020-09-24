@@ -167,7 +167,6 @@ impl<R: Read> Rson<'_, R> {
         self.match_char(StructuralChar::QuotationMark);
 
         let mut token = String::new();
-        token.push('"');
 
         while let Some(c) = self.look {
             if c != StructuralChar::QuotationMark.into() {
@@ -179,7 +178,6 @@ impl<R: Read> Rson<'_, R> {
         }
 
         self.match_char(StructuralChar::QuotationMark);
-        token.push('"');
         self.skip_white();
 
         Value::String(token)
@@ -241,11 +239,14 @@ fn test_invalid_literal() {
 fn test_string() {
     let text = r#""string""#;
     let actual = Rson::from_reader(text.as_bytes());
-    assert!(actual == Value::String(text.to_string()));
+    assert_eq!(actual, Value::String("string".to_string()));
 
     let text = r#""A long long long string. Maybe!""#;
     let actual = Rson::from_reader(text.as_bytes());
-    assert!(actual == Value::String(text.to_string()));
+    assert_eq!(
+        actual,
+        Value::String("A long long long string. Maybe!".to_string())
+    );
 }
 
 #[test]
@@ -276,10 +277,7 @@ fn test_object_string_bool() {
     let actual = Rson::from_reader(object.as_bytes());
 
     let mut map = HashMap::new();
-    map.insert(
-        r#""IsGPU""#.to_string(),
-        Value::Literal(Literal::Bool(true)),
-    );
+    map.insert(r#"IsGPU"#.to_string(), Value::Literal(Literal::Bool(true)));
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }
 
@@ -291,8 +289,8 @@ fn test_object_string_string() {
 
     let mut map = HashMap::new();
     map.insert(
-        r#""name""#.to_string(),
-        Value::String(r#""Devajit Asem""#.to_string()),
+        r#"name"#.to_string(),
+        Value::String(r#"Devajit Asem"#.to_string()),
     );
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }
@@ -322,34 +320,31 @@ fn test_object_multiple_entries() {
 
     let mut map = HashMap::new();
     map.insert(
-        r#""Id""#.to_string(),
+        r#"Id"#.to_string(),
         Value::Number(Number::new("93638382".to_string())),
     );
     map.insert(
-        r#""Name""#.to_string(),
-        Value::String(r#""Devajit Asem""#.to_string()),
+        r#"Name"#.to_string(),
+        Value::String(r#"Devajit Asem"#.to_string()),
     );
+    map.insert(r#"HasGPU"#.to_string(), Value::Literal(Literal::Bool(true)));
+    map.insert(r#"Got3080"#.to_string(), Value::Literal(Literal::Null));
     map.insert(
-        r#""HasGPU""#.to_string(),
-        Value::Literal(Literal::Bool(true)),
-    );
-    map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
-    map.insert(
-        r#""CanAfford3090""#.to_string(),
+        r#"CanAfford3090"#.to_string(),
         Value::Literal(Literal::Bool(false)),
     );
 
     let mut inner_map = HashMap::new();
     inner_map.insert(
-        r#""RamType""#.to_string(),
-        Value::String(r#""DDR6""#.to_string()),
+        r#"RamType"#.to_string(),
+        Value::String(r#"DDR6"#.to_string()),
     );
     inner_map.insert(
-        r#""SerialNum""#.to_string(),
+        r#"SerialNum"#.to_string(),
         Value::Number(Number::new("12837982".to_string())),
     );
     map.insert(
-        r#""GPUDetail""#.to_string(),
+        r#"GPUDetail"#.to_string(),
         Value::Object(RsonMap(inner_map)),
     );
 
@@ -364,9 +359,9 @@ fn test_object_array() {
 
     let mut map = HashMap::new();
     map.insert(
-        r#""Name""#.to_string(),
+        r#"Name"#.to_string(),
         Value::Array(vec![
-            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::String(r#"Devajit Asem"#.to_string()),
             Value::Number(Number::new("12324".to_string())),
             Value::Literal(Literal::Bool(true)),
             Value::Literal(Literal::Bool(false)),
@@ -393,40 +388,37 @@ fn setup_object() -> (&'static str, Value) {
 
     let mut map = HashMap::new();
     map.insert(
-        r#""Id""#.to_string(),
+        r#"Id"#.to_string(),
         Value::Number(Number::new("93638382".to_string())),
     );
     map.insert(
-        r#""Name""#.to_string(),
-        Value::String(r#""Devajit Asem""#.to_string()),
+        r#"Name"#.to_string(),
+        Value::String(r#"Devajit Asem"#.to_string()),
     );
+    map.insert(r#"HasGPU"#.to_string(), Value::Literal(Literal::Bool(true)));
+    map.insert(r#"Got3080"#.to_string(), Value::Literal(Literal::Null));
     map.insert(
-        r#""HasGPU""#.to_string(),
-        Value::Literal(Literal::Bool(true)),
-    );
-    map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
-    map.insert(
-        r#""CanAfford3090""#.to_string(),
+        r#"CanAfford3090"#.to_string(),
         Value::Literal(Literal::Bool(false)),
     );
 
     let mut inner_map = HashMap::new();
     inner_map.insert(
-        r#""RamType""#.to_string(),
-        Value::String(r#""DDR6""#.to_string()),
+        r#"RamType"#.to_string(),
+        Value::String(r#"DDR6"#.to_string()),
     );
     inner_map.insert(
-        r#""SerialNum""#.to_string(),
+        r#"SerialNum"#.to_string(),
         Value::Number(Number::new("12837982".to_string())),
     );
     map.insert(
-        r#""GPUDetail""#.to_string(),
+        r#"GPUDetail"#.to_string(),
         Value::Object(RsonMap(inner_map)),
     );
     map.insert(
-        r#""Array""#.to_string(),
+        r#"Array"#.to_string(),
         Value::Array(vec![
-            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::String(r#"Devajit Asem"#.to_string()),
             Value::Number(Number::new("12324".to_string())),
             Value::Literal(Literal::Bool(true)),
             Value::Literal(Literal::Bool(false)),
@@ -451,30 +443,30 @@ fn test_object_access_index() {
 
     let mut gpu_detail_map = HashMap::new();
     gpu_detail_map.insert(
-        r#""RamType""#.to_string(),
-        Value::String(r#""DDR6""#.to_string()),
+        r#"RamType"#.to_string(),
+        Value::String(r#"DDR6"#.to_string()),
     );
     gpu_detail_map.insert(
-        r#""SerialNum""#.to_string(),
+        r#"SerialNum"#.to_string(),
         Value::Number(Number::new("12837982".to_string())),
     );
 
     assert_eq!(
-        parsed_object[r#""HasGPU""#],
+        parsed_object[r#"HasGPU"#],
         Value::Literal(Literal::Bool(true))
     );
     assert_eq!(
-        parsed_object[r#""Name""#],
-        Value::String(r#""Devajit Asem""#.to_string()),
+        parsed_object[r#"Name"#],
+        Value::String(r#"Devajit Asem"#.to_string()),
     );
     assert_eq!(
-        parsed_object[r#""GPUDetail""#],
+        parsed_object[r#"GPUDetail"#],
         Value::Object(RsonMap(gpu_detail_map))
     );
     assert_eq!(
-        parsed_object[r#""Array""#],
+        parsed_object[r#"Array"#],
         Value::Array(vec![
-            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::String(r#"Devajit Asem"#.to_string()),
             Value::Number(Number::new("12324".to_string())),
             Value::Literal(Literal::Bool(true)),
             Value::Literal(Literal::Bool(false)),
