@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::ops::Index;
 use std::str::FromStr;
-
 /// JSON Grammar:
 ///     JSON-text = ws value ws
 ///
@@ -63,6 +63,17 @@ pub enum Value {
     String(String),
     Array(Vec<Value>),
     Object(RsonMap<String, Value>),
+}
+
+impl Index<&'static str> for Value {
+    type Output = Value;
+
+    fn index(&self, name: &str) -> &Self::Output {
+        match self {
+            Value::Object(map) => map.0.get(name).unwrap(),
+            _ => panic!("Index not supported!"),
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]

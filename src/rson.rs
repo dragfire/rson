@@ -377,8 +377,7 @@ fn test_object_array() {
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }
 
-#[test]
-fn test_parse() {
+fn setup_object() -> (&'static str, Value) {
     let object = r#"{
     "Id": 93638382,
     "Name": "Devajit Asem",
@@ -391,8 +390,6 @@ fn test_parse() {
     },
     "Array": ["Devajit Asem", 12324, true, false, null]
     }"#;
-
-    let actual = Rson::from_reader(object.as_bytes());
 
     let mut map = HashMap::new();
     map.insert(
@@ -437,5 +434,51 @@ fn test_parse() {
         ]),
     );
 
-    assert_eq!(actual, Value::Object(RsonMap(map)));
+    (object, Value::Object(RsonMap(map)))
+}
+
+#[test]
+fn test_parse() {
+    let (object, expected) = setup_object();
+    let actual = Rson::from_reader(object.as_bytes());
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_object_access_index() {
+    let (object_str, _) = setup_object();
+    let parsed_object = Rson::from_reader(object_str.as_bytes());
+
+    let mut gpu_detail_map = HashMap::new();
+    gpu_detail_map.insert(
+        r#""RamType""#.to_string(),
+        Value::String(r#""DDR6""#.to_string()),
+    );
+    gpu_detail_map.insert(
+        r#""SerialNum""#.to_string(),
+        Value::Number(Number::new("12837982".to_string())),
+    );
+
+    assert_eq!(
+        parsed_object[r#""HasGPU""#],
+        Value::Literal(Literal::Bool(true))
+    );
+    assert_eq!(
+        parsed_object[r#""Name""#],
+        Value::String(r#""Devajit Asem""#.to_string()),
+    );
+    assert_eq!(
+        parsed_object[r#""GPUDetail""#],
+        Value::Object(RsonMap(gpu_detail_map))
+    );
+    assert_eq!(
+        parsed_object[r#""Array""#],
+        Value::Array(vec![
+            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::Number(Number::new("12324".to_string())),
+            Value::Literal(Literal::Bool(true)),
+            Value::Literal(Literal::Bool(false)),
+            Value::Literal(Literal::Null),
+        ]),
+    );
 }
