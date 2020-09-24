@@ -1,6 +1,7 @@
-use crate::value::{Literal, Number, RsonMap, StructuralChar, Value, SPACE, TAB};
+use crate::value::{Literal, Number, RsonMap, StructuralChar, Value, NEW_LINE, SPACE, TAB};
 use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Read};
+use std::str::FromStr;
 
 struct Rson<'a, R> {
     names: HashSet<&'a str>,
@@ -42,14 +43,14 @@ impl<R: Read> Rson<'_, R> {
 
     /// Returns true if Lookahead character is TAB or SPACE
     pub fn is_white(&mut self) -> bool {
-        [TAB, SPACE].iter().any(|w| Some(*w) == self.look)
+        [TAB, SPACE, NEW_LINE].iter().any(|w| Some(*w) == self.look)
     }
 
     fn match_char<T: Into<char>>(&mut self, x: T) {
         if let Some(look) = self.look {
             let c: char = x.into();
             if !self.accept(c) {
-                panic!("Look: {}, Expected: {}", look, c);
+                panic!("Look: `{}`, Expected: `{}`", look, c);
             }
         }
         self.look = self.get_char();
@@ -69,9 +70,19 @@ impl<R: Read> Rson<'_, R> {
         let mut token = String::new();
 
         while let Some(c) = self.look {
-            token.push(c);
+            if !StructuralChar::iter().any(|&sc| {
+                let x: char = sc.into();
+                x == c
+            }) && !self.is_white()
+            {
+                token.push(c);
+            } else {
+                break;
+            }
             self.look = self.get_char();
         }
+
+        self.skip_white();
 
         token
     }
@@ -97,7 +108,9 @@ impl<R: Read> Rson<'_, R> {
 
     pub fn value(&mut self) -> Value {
         // recognize string
-        if self.accept(StructuralChar::QuotationMark.into()) {}
+        if self.accept(StructuralChar::QuotationMark.into()) {
+            return self.string();
+        }
 
         // recognize array
         if self.accept(StructuralChar::BeginArray.into()) {}
@@ -119,14 +132,28 @@ impl<R: Read> Rson<'_, R> {
             return Value::Object(map);
         }
 
-        let key = self.string();
-        self.match_char(StructuralChar::NameSeperator);
-        let value = self.value();
-        self.match_char(StructuralChar::EndObject);
-        if let Value::String(key) = key {
-            map.0.insert(key, value);
+        while !self.accept(StructuralChar::EndObject.into()) {
+            let key = self.string();
+            self.match_char(StructuralChar::NameSeperator);
+            let value = self.value();
+
+            // consume ValueSeperator and continue to the next
+            // key-value pair if there is any.
+            if self.accept(StructuralChar::ValueSeperator.into()) {
+                self.match_char(StructuralChar::ValueSeperator);
+            }
+
+            if let Value::String(key) = key {
+                map.0.insert(key, value);
+            }
         }
+
+        self.match_char(StructuralChar::EndObject);
         Value::Object(map)
+    }
+
+    fn kv_pair(&mut self) -> Option<(String, Value)> {
+        None
     }
 
     fn array(&mut self) {
@@ -145,6 +172,8 @@ impl<R: Read> Rson<'_, R> {
         self.match_char(StructuralChar::QuotationMark);
 
         let mut token = String::new();
+        token.push('"');
+
         while let Some(c) = self.look {
             if c != StructuralChar::QuotationMark.into() {
                 token.push(c);
@@ -155,17 +184,16 @@ impl<R: Read> Rson<'_, R> {
         }
 
         self.match_char(StructuralChar::QuotationMark);
+        token.push('"');
         self.skip_white();
-        Value::String(format!("\"{}\"", token))
+
+        Value::String(token)
     }
 
     pub fn literal(&mut self) -> Value {
-        let token = self.get_token();
-        match token.as_str() {
-            "null" => Value::Literal(Literal::Null),
-            "true" => Value::Literal(Literal::Bool(true)),
-            "false" => Value::Literal(Literal::Bool(false)),
-            _ => panic!("Expected a literal. Found: {}", token),
+        match Literal::from_str(self.get_token().as_str()) {
+            Ok(val) => Value::Literal(val),
+            Err(e) => panic!(e),
         }
     }
 
@@ -212,7 +240,7 @@ fn expected(value: &str) {
 
 #[test]
 fn test_literal() {
-    let mut rson = Rson::from_reader("true".as_bytes()).unwrap();
+    let mut rson = Rson::from_reader("true    ".as_bytes()).unwrap();
     assert!(rson.literal() == Value::Literal(Literal::Bool(true)));
 
     let mut rson = Rson::from_reader("false".as_bytes()).unwrap();
@@ -269,12 +297,65 @@ fn test_object_invalid() {
 }
 
 #[test]
-fn test_object() {
+fn test_object_string_bool() {
+    // { String: Boolean }
     let object = r#"{"IsGPU": true}"#;
     let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
     let actual = rson.object();
 
     let mut map = HashMap::new();
-    map.insert(r#""IsGPU""#.to_string(), Value::Literal(Literal::Null));
+    map.insert(
+        r#""IsGPU""#.to_string(),
+        Value::Literal(Literal::Bool(true)),
+    );
+    assert_eq!(actual, Value::Object(RsonMap(map)));
+}
+
+#[test]
+fn test_object_string_string() {
+    // { String: String }
+    let object = r#"{"name": "Devajit Asem"}"#;
+    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
+    let actual = rson.object();
+
+    let mut map = HashMap::new();
+    map.insert(
+        r#""name""#.to_string(),
+        Value::String(r#""Devajit Asem""#.to_string()),
+    );
+    assert_eq!(actual, Value::Object(RsonMap(map)));
+}
+
+#[test]
+fn test_object_multiple_entries() {
+    // {
+    //      String: String,
+    //      String: Literal
+    //      String: Literal
+    // }
+    //
+    let object = r#"{
+    "name": "Devajit Asem",
+    "hasGPU": true    ,
+    "Got3080": null,
+    "CanAfford3090"   : false   
+    }"#;
+    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
+    let actual = rson.object();
+
+    let mut map = HashMap::new();
+    map.insert(
+        r#""name""#.to_string(),
+        Value::String(r#""Devajit Asem""#.to_string()),
+    );
+    map.insert(
+        r#""hasGPU""#.to_string(),
+        Value::Literal(Literal::Bool(true)),
+    );
+    map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
+    map.insert(
+        r#""CanAfford3090""#.to_string(),
+        Value::Literal(Literal::Bool(false)),
+    );
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }

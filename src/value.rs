@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::str::FromStr;
 
 /// JSON Grammar:
 ///     JSON-text = ws value ws
@@ -70,6 +71,18 @@ pub enum Literal {
     Bool(bool),
 }
 
+impl FromStr for Literal {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "null" => Ok(Literal::Null),
+            "true" => Ok(Literal::Bool(true)),
+            "false" => Ok(Literal::Bool(false)),
+            _ => Err(format!("Expected a literal. Found: `{}`", s)),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct RsonMap<K, V>(pub HashMap<K, V>)
 where
@@ -91,7 +104,7 @@ pub const TAB: char = '\t';
 pub const NEW_LINE: char = '\n';
 pub const SPACE: char = ' ';
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 #[repr(u8)]
 pub enum StructuralChar {
     BeginArray = '[' as u8,
@@ -104,7 +117,7 @@ pub enum StructuralChar {
 }
 
 impl StructuralChar {
-    fn iter() -> std::slice::Iter<'static, StructuralChar> {
+    pub fn iter() -> std::slice::Iter<'static, StructuralChar> {
         [
             StructuralChar::BeginArray,
             StructuralChar::BeginObject,
