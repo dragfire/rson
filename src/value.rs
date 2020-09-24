@@ -144,24 +144,3 @@ impl From<StructuralChar> for char {
         }
     }
 }
-
-#[derive(Debug, PartialEq, Eq)]
-enum Ops {
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    INVALID,
-}
-
-impl From<char> for Ops {
-    fn from(c: char) -> Self {
-        match c {
-            '+' => Ops::ADD,
-            '-' => Ops::SUB,
-            '*' => Ops::MUL,
-            '/' => Ops::DIV,
-            _ => Ops::INVALID,
-        }
-    }
-}

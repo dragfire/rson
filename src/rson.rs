@@ -87,25 +87,6 @@ impl<R: Read> Rson<'_, R> {
         token
     }
 
-    pub fn get_name(&mut self) -> String {
-        let mut token = String::new();
-        if let Some(look) = self.look {
-            if !look.is_alphabetic() {
-                panic!("Name");
-            }
-
-            while look.is_ascii_alphanumeric() {
-                let look_upcase = look.to_ascii_uppercase();
-
-                token.push(look_upcase);
-
-                self.look = self.get_char();
-            }
-            self.skip_white();
-        }
-        token
-    }
-
     pub fn value(&mut self) -> Value {
         // recognize string
         if self.accept(StructuralChar::QuotationMark.into()) {
@@ -118,6 +99,12 @@ impl<R: Read> Rson<'_, R> {
         // recognize object
         if self.accept(StructuralChar::BeginObject.into()) {
             return self.object();
+        }
+
+        if let Some(c) = self.look {
+            if c.is_ascii_digit() {
+                return self.number();
+            }
         }
 
         self.literal()
@@ -152,22 +139,6 @@ impl<R: Read> Rson<'_, R> {
 
         self.match_char(StructuralChar::EndObject);
         Value::Object(map)
-    }
-
-    fn kv_pair(&mut self) -> Option<(String, Value)> {
-        None
-    }
-
-    fn array(&mut self) {
-        print!(" array ");
-        self.look = self.get_char();
-    }
-
-    fn name(&mut self) {
-        while let Some(c) = self.look {
-            print!("{}", c);
-            self.look = self.get_char();
-        }
     }
 
     fn string(&mut self) -> Value {
@@ -214,25 +185,6 @@ impl<R: Read> Rson<'_, R> {
             }
         }
         Value::Number(Number::new(token))
-    }
-
-    // TODO revisit
-    fn parse(&mut self) -> Result<Value> {
-        self.look = self.get_char();
-        while let Some(look) = self.look {
-            match look {
-                _ => {
-                    if look.is_ascii_alphabetic() {
-                        self.literal();
-                    } else if look.is_ascii_digit() {
-                        self.number();
-                    }
-                }
-            }
-            self.look = self.get_char();
-        }
-
-        Ok(Value::Literal(Literal::Null))
     }
 }
 
