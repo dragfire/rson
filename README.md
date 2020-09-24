@@ -2,14 +2,12 @@
 A minimal JSON parser in Rust
         
 ## Usage:
-Right now, `rson` doesn't do anything useful per se, but it can understand and parse JSON text. Will be adding more useful infos soon!
 My goal here is to implement a JSON parser from scratch just by referring this [JSON RFC](https://tools.ietf.org/html/rfc7159).
 
-## Example:
+- Parse
 ```rust
 // This example test demonstrates the basic functionalities of `rson`.
-#[test]
-fn test_parse() {
+fn parse() {
     let object = r#"{
     "Id": 93638382,
     "Name": "Devajit Asem",
@@ -71,12 +69,108 @@ fn test_parse() {
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }
 ```
+
+- Access by Index:
+```rust
+    let object_str = r#"{
+    "Id": 93638382,
+    "Name": "Devajit Asem",
+    "HasGPU": true    ,
+    "Got3080": null,
+    "CanAfford3090"   : false,
+    "GPUDetail": {
+        "RamType": "DDR6",
+        "SerialNum": 12837982,
+    },
+    "Array": ["Devajit Asem", 12324, true, false, null]
+    }"#;
+
+    let mut map = HashMap::new();
+    map.insert(
+        r#""Id""#.to_string(),
+        Value::Number(Number::new("93638382".to_string())),
+    );
+    map.insert(
+        r#""Name""#.to_string(),
+        Value::String(r#""Devajit Asem""#.to_string()),
+    );
+    map.insert(
+        r#""HasGPU""#.to_string(),
+        Value::Literal(Literal::Bool(true)),
+    );
+    map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
+    map.insert(
+        r#""CanAfford3090""#.to_string(),
+        Value::Literal(Literal::Bool(false)),
+    );
+
+    let mut inner_map = HashMap::new();
+    inner_map.insert(
+        r#""RamType""#.to_string(),
+        Value::String(r#""DDR6""#.to_string()),
+    );
+    inner_map.insert(
+        r#""SerialNum""#.to_string(),
+        Value::Number(Number::new("12837982".to_string())),
+    );
+    map.insert(
+        r#""GPUDetail""#.to_string(),
+        Value::Object(RsonMap(inner_map)),
+    );
+    map.insert(
+        r#""Array""#.to_string(),
+        Value::Array(vec![
+            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::Number(Number::new("12324".to_string())),
+            Value::Literal(Literal::Bool(true)),
+            Value::Literal(Literal::Bool(false)),
+            Value::Literal(Literal::Null),
+        ]),
+    );
+
+    let parsed_object = Rson::from_reader(object_str.as_bytes());
+
+    let mut gpu_detail_map = HashMap::new();
+    gpu_detail_map.insert(
+        r#""RamType""#.to_string(),
+        Value::String(r#""DDR6""#.to_string()),
+    );
+    gpu_detail_map.insert(
+        r#""SerialNum""#.to_string(),
+        Value::Number(Number::new("12837982".to_string())),
+    );
+
+    assert_eq!(
+        parsed_object[r#""HasGPU""#],
+        Value::Literal(Literal::Bool(true))
+    );
+    assert_eq!(
+        parsed_object[r#""Name""#],
+        Value::String(r#""Devajit Asem""#.to_string()),
+    );
+    assert_eq!(
+        parsed_object[r#""GPUDetail""#],
+        Value::Object(RsonMap(gpu_detail_map))
+    );
+    assert_eq!(
+        parsed_object[r#""Array""#],
+        Value::Array(vec![
+            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::Number(Number::new("12324".to_string())),
+            Value::Literal(Literal::Bool(true)),
+            Value::Literal(Literal::Bool(false)),
+            Value::Literal(Literal::Null),
+        ]),
+    );
+```
+
 Currently, `rson` supports limited set of functionalities:  
 - [x] Parse basic JSON structure
 - [x] Parse literals: true, false, null
 - [x] Parse basic number
 - [x] Parse unescaped strings
 - [x] Parse array
+- [x] Support access by index: value[index]
 - [ ] Parse Decimal, Exponent numbers
 - [ ] Parse escaped strings
 - [ ] Support serialization
