@@ -9,34 +9,33 @@ My goal here is to implement a JSON parser from scratch just by referring this [
 ```rust
 // This example test demonstrates the basic functionalities of `rson`.
 #[test]
-fn test_object_multiple_entries() {
-    // {
-    //      String: String,
-    //      String: Literal,
-    //      String: Literal,
-    //      String: Literal,
-    //      String: Object
-    // }
-    //
+fn test_parse() {
     let object = r#"{
-    "name": "Devajit Asem",
-    "hasGPU": true    ,
+    "Id": 93638382,
+    "Name": "Devajit Asem",
+    "HasGPU": true    ,
     "Got3080": null,
     "CanAfford3090"   : false,
     "GPUDetail": {
         "RamType": "DDR6",
-    }
+        "SerialNum": 12837982,
+    },
+    "Array": ["Devajit Asem", 12324, true, false, null]
     }"#;
-    let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
-    let actual = rson.object();
+
+    let actual = Rson::from_reader(object.as_bytes());
 
     let mut map = HashMap::new();
     map.insert(
-        r#""name""#.to_string(),
+        r#""Id""#.to_string(),
+        Value::Number(Number::new("93638382".to_string())),
+    );
+    map.insert(
+        r#""Name""#.to_string(),
         Value::String(r#""Devajit Asem""#.to_string()),
     );
     map.insert(
-        r#""hasGPU""#.to_string(),
+        r#""HasGPU""#.to_string(),
         Value::Literal(Literal::Bool(true)),
     );
     map.insert(r#""Got3080""#.to_string(), Value::Literal(Literal::Null));
@@ -50,9 +49,23 @@ fn test_object_multiple_entries() {
         r#""RamType""#.to_string(),
         Value::String(r#""DDR6""#.to_string()),
     );
+    inner_map.insert(
+        r#""SerialNum""#.to_string(),
+        Value::Number(Number::new("12837982".to_string())),
+    );
     map.insert(
         r#""GPUDetail""#.to_string(),
         Value::Object(RsonMap(inner_map)),
+    );
+    map.insert(
+        r#""Array""#.to_string(),
+        Value::Array(vec![
+            Value::String(r#""Devajit Asem""#.to_string()),
+            Value::Number(Number::new("12324".to_string())),
+            Value::Literal(Literal::Bool(true)),
+            Value::Literal(Literal::Bool(false)),
+            Value::Literal(Literal::Null),
+        ]),
     );
 
     assert_eq!(actual, Value::Object(RsonMap(map)));
@@ -63,7 +76,7 @@ Currently, `rson` supports limited set of functionalities:
 - [x] Parse literals: true, false, null
 - [x] Parse basic number
 - [x] Parse unescaped strings
-- [ ] Parse array
+- [x] Parse array
 - [ ] Parse Decimal, Exponent numbers
 - [ ] Parse escaped strings
 - [ ] Support serialization
