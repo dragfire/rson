@@ -116,7 +116,9 @@ impl<R: Read> Rson<'_, R> {
         if self.accept(StructuralChar::BeginArray.into()) {}
 
         // recognize object
-        if self.accept(StructuralChar::BeginObject.into()) {}
+        if self.accept(StructuralChar::BeginObject.into()) {
+            return self.object();
+        }
 
         self.literal()
     }
@@ -338,7 +340,10 @@ fn test_object_multiple_entries() {
     "name": "Devajit Asem",
     "hasGPU": true    ,
     "Got3080": null,
-    "CanAfford3090"   : false   
+    "CanAfford3090"   : false,
+    "GPUDetail": {
+        "RamType": "DDR6",
+    }
     }"#;
     let mut rson = Rson::from_reader(object.as_bytes()).unwrap();
     let actual = rson.object();
@@ -357,5 +362,16 @@ fn test_object_multiple_entries() {
         r#""CanAfford3090""#.to_string(),
         Value::Literal(Literal::Bool(false)),
     );
+
+    let mut inner_map = HashMap::new();
+    inner_map.insert(
+        r#""RamType""#.to_string(),
+        Value::String(r#""DDR6""#.to_string()),
+    );
+    map.insert(
+        r#""GPUDetail""#.to_string(),
+        Value::Object(RsonMap(inner_map)),
+    );
+
     assert_eq!(actual, Value::Object(RsonMap(map)));
 }

@@ -1,7 +1,7 @@
 # rson
 A minimal JSON parser in Rust
 
-# JSON Grammar:
+## JSON Grammar:
 
     JSON-text = ws value ws
     
@@ -54,4 +54,3 @@ A minimal JSON parser in Rust
         escape = \
         quotation-mark = "
         unescaped = a-z | A-Z | %x5D-10FFFF
- 
