@@ -54,3 +54,12 @@ A minimal JSON parser in Rust
         escape = \
         quotation-mark = "
         unescaped = a-z | A-Z | %x5D-10FFFF
+
+Currently, `rson` supports limited set of functionalities:  
+- [x] Parse basic JSON structure
+- [x] Parse literals: true, false, null
+- [x] Parse basic number
+- [x] Parse unescaped strings
+- [ ] Parse array
+- [ ] Parse Decimal, Exponent numbers
+- [ ] Parse escaped strings
