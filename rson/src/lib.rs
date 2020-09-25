@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+mod deserialize;
 mod rson;
 mod value;
 
