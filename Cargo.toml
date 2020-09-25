@@ -1,10 +1,2 @@
-[package]
-name = "rson"
-version = "0.1.0"
-authors = ["dragfire <asem.devajit@gmail.com>"]
-edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-doctest = false
+[workspace]
+members = ["rson", "rson_derive"]
