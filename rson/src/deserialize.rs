@@ -1,5 +1,4 @@
-pub use crate::value::Value;
-pub use rson_derive::*;
+use crate::value::Value;
 
 // *************** Visitor *****************
 pub trait EnumAccess {}
@@ -41,13 +40,13 @@ impl Visitor for ValueVisitor {
 ///     address: Option<String>
 /// }
 
-pub trait Deserialze {
+pub trait Deserialize {
     fn deserialize<D>(deserializer: D) -> Self
     where
         D: Deserializer;
 }
 
-impl Deserialze for Value {
+impl Deserialize for Value {
     fn deserialize<D>(deserializer: D) -> Self
     where
         D: Deserializer,
@@ -103,6 +102,6 @@ impl Deserializer for ValueDeserializer {
     where
         V: Visitor,
     {
-        v.visit_enum()
+        panic!()
     }
 }

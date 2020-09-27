@@ -5,7 +5,7 @@ use syn::{
     parse_macro_input, parse_quote, Data, DeriveInput, Fields, GenericParam, Generics, Index,
 };
 
-#[proc_macro_derive(Deserealize)]
+#[proc_macro_derive(Deserialize)]
 pub fn derive_deserialize(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the input tokens into a syntax tree.
     let input = parse_macro_input!(input as DeriveInput);
@@ -14,8 +14,9 @@ pub fn derive_deserialize(input: proc_macro::TokenStream) -> proc_macro::TokenSt
     let name = input.ident;
 
     let expanded = quote! {
-        impl Deserialize for #name {
-        }
+       fn hello() -> String {
+           unimplemented!("derive Deserialize macro");
+       }
     };
 
     proc_macro::TokenStream::from(expanded)

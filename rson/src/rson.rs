@@ -3,8 +3,6 @@ use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Read};
 use std::str::FromStr;
 
-///
-///
 /// [(k, v), (k, (k, v))]
 macro_rules! map {
     ($e:expr) => {
